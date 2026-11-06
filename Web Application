@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShopSage: your sales CSV, read back to you</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F3F5F1; --panel:#fff; --ink:#14202A; --deep:#0B3D3C; --teal:#0E7C7B; --teal-dark:#0A5F5E; --mint:#D8ECE9;
+  --tag:#F4B400; --tag-soft:#FFF3C4; --alert:#B83227; --mute:#5B6874; --line:#DDE2DA; --cream:#FBFCFA;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif; --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --pad:clamp(16px,4vw,48px);
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}a}
+svg text{font-family:var(--body)}
+
+/* ---------- shop front: the awning ---------- */
+.awning{position:relative;height:26px;background:repeating-linear-gradient(90deg,var(--teal) 0 40px,var(--cream) 40px 80px)}
+.awning::after{content:"";position:absolute;left:0;right:0;top:100%;height:20px;filter:drop-shadow(0 2px 1px rgba(20,32,42,.14));
+  background:radial-gradient(circle at 20px 0,var(--teal) 19.5px,#0000 20px) 0 0/80px 20px repeat-x,
+             radial-gradient(circle at 60px 0,var(--cream) 19.5px,#0000 20px) 0 0/80px 20px repeat-x}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:38px var(--pad) 10px}
+.brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font:700 1.5rem/1 var(--display);background:none;border:0;cursor:pointer;padding:0}
+.topbar nav{display:flex;gap:20px;flex-wrap:wrap;justify-content:flex-end}
+.linkbtn{background:none;border:0;padding:0 0 2px;font:600 1rem var(--body);color:var(--ink);cursor:pointer;border-bottom:2px solid transparent}
+.linkbtn:hover{border-bottom-color:var(--tag)}
+
+/* ---------- messages ---------- */
+.flashes{padding:8px var(--pad) 0;max-width:1400px;margin:0 auto}
+.flashes:empty{display:none}
+.flash{margin:0 0 8px;padding:12px 16px;border-radius:10px;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--teal);box-shadow:0 6px 18px -12px rgba(20,32,42,.4)}
+.flash.error{border-left-color:var(--alert);background:#FDF3F1} .flash.warn{border-left-color:var(--tag);background:#FFFAE8}
+.busy{position:fixed;inset:auto 0 28px 0;margin:auto;width:max-content;max-width:90vw;display:flex;align-items:center;gap:12px;background:var(--ink);color:#fff;padding:12px 20px;border-radius:999px;font-weight:600;z-index:50;box-shadow:0 12px 30px -10px rgba(0,0,0,.5)}
+.spin{width:16px;height:16px;border-radius:50%;border:3px solid rgba(255,255,255,.3);border-top-color:var(--tag);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 22px;border-radius:10px;border:2px solid var(--ink);font:700 1rem/1.2 var(--body);cursor:pointer;text-align:center;transition:transform .12s,box-shadow .12s,background .12s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 8px 16px -10px rgba(20,32,42,.6)}
+.btn.primary{background:var(--ink);color:#fff} .btn.primary:hover{background:var(--teal-dark);border-color:var(--teal-dark)}
+.btn.tag{background:var(--tag);border-color:var(--tag);color:var(--ink)} .btn.tag:hover{background:#FFC928;border-color:#FFC928}
+.btn.ghost{background:transparent;color:var(--ink)} .btn.ghost:hover{background:var(--tag-soft)}
+.btn.light{background:transparent;color:#fff;border-color:rgba(255,255,255,.55)} .btn.light:hover{background:rgba(255,255,255,.12)}
+.btn.small{padding:9px 14px;font-size:.95rem;border-radius:8px}
+.ic{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- home: hero panel ---------- */
+.hero-panel{position:relative;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:clamp(28px,5vw,80px);align-items:start;
+  margin:8px clamp(12px,3vw,40px) 0;padding:clamp(32px,5vw,64px) clamp(20px,5vw,72px) clamp(40px,5vw,72px);background:var(--deep);color:#fff;border-radius:26px}
+.chip{display:inline-block;margin:0 0 22px;padding:7px 16px 7px 30px;background:var(--tag);color:var(--ink);font-weight:700;font-size:.95rem;
+  clip-path:polygon(14px 0,100% 0,100% 100%,14px 100%,0 50%);position:relative}
+.chip::before{content:"";position:absolute;left:16px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--deep)}
+.hero-panel h1{font-size:clamp(2.6rem,5.6vw,4.7rem);font-weight:700;max-width:12.5ch;color:#fff}
+.lead{font-size:1.2rem;max-width:50ch;margin:20px 0 30px;color:#BCD6D2}
+.upload{max-width:560px}
+.drop{display:flex;align-items:center;gap:16px;position:relative;padding:20px 22px;background:var(--cream);color:var(--ink);border:2px dashed var(--teal);border-radius:14px;cursor:pointer;transition:background .12s,border-color .12s}
+.drop:hover,.drop:focus-within,.drop.over{background:var(--tag-soft);border-color:var(--ink)}
+.drop .ic{width:34px;height:34px;color:var(--teal-dark)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-title{display:block;font:700 1.15rem/1.3 var(--display);overflow-wrap:anywhere}
+.drop-hint{display:block;color:var(--mute);font-size:.95rem;line-height:1.35}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+
+/* ---------- the receipt (the memorable element) ---------- */
+.receipt{--r:#fff;position:relative;background:var(--r);color:var(--ink);padding:28px 24px 30px;margin-bottom:14px;box-shadow:0 1px 0 var(--line),0 18px 30px -18px rgba(8,30,30,.55);transform:rotate(.9deg)}
+.receipt::after{content:"";position:absolute;left:0;right:0;top:100%;height:9px;background:conic-gradient(from -45deg at bottom,#0000,var(--r) 1deg 89deg,#0000 90deg) 50%/14px 100%}
+.receipt h2{font-size:1.4rem}
+.receipt-sub{margin:4px 0 16px;color:var(--mute);font-size:.95rem}
+.receipt-foot{margin:16px 0 0;color:var(--mute);font-size:.95rem}
+.spark{display:block;width:100%;height:auto;margin-top:14px}
+.ledger{list-style:none;margin:0;padding:0}
+.ledger li{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;padding:10px 0}
+.ledger li+li{border-top:1px solid #EEF0EB}
+.ledger span{font-weight:600}
+.ledger i{flex:1;min-width:12px;border-bottom:2px dotted #B9C0C8;transform:translateY(-4px)}
+.ledger b{font:700 1.15rem/1 var(--display);color:var(--teal-dark)}
+.ledger em{flex-basis:100%;font-style:normal;color:var(--mute);font-size:.93rem;line-height:1.4}
+.ledger.print li{animation:printline .45s ease-out backwards;animation-delay:calc(var(--i)*110ms + 150ms)}
+@keyframes printline{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+
+/* ---------- home: below the hero ---------- */
+.below{max-width:1200px;margin:0 auto;padding:clamp(48px,7vw,88px) var(--pad) 72px;display:grid;gap:clamp(40px,6vw,72px)}
+.below h2{font-size:clamp(1.5rem,2.6vw,2rem);margin-bottom:22px}
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(20px,4vw,48px);list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{position:relative;padding-top:18px;border-top:3px solid var(--ink)}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;top:-17px;left:0;width:31px;height:31px;border-radius:50%;background:var(--tag);color:var(--ink);font:700 1rem/31px var(--display);text-align:center;border:3px solid var(--paper);box-sizing:content-box;margin-left:-3px;margin-top:-3px}
+.steps strong{display:block;font:700 1.2rem/1.2 var(--display);margin:10px 0 4px}
+.steps span{color:var(--mute)}
+.gives{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:30px clamp(20px,4vw,48px)}
+.gives div{display:grid;grid-template-columns:44px 1fr;gap:4px 14px;align-items:start}
+.gives .badge{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;background:var(--mint);color:var(--teal-dark)}
+.gives strong{font:700 1.1rem/1.25 var(--display);align-self:center}
+.gives p{grid-column:2;margin:0;color:var(--mute);font-size:.98rem;line-height:1.45}
+.needs{border-top:1px solid var(--line);padding-top:28px;max-width:70ch}
+.needs h2{margin-bottom:10px;font-size:1.3rem} .needs p{margin:6px 0;color:var(--mute)} .needs strong{color:var(--ink)}
+
+/* ---------- report ---------- */
+.report{max-width:1400px;margin:0 auto;padding:18px var(--pad) 64px}
+.report-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px 24px}
+.report-head h1{font-size:clamp(2rem,3.8vw,2.9rem)}
+.meta{margin:8px 0 0;color:var(--mute);overflow-wrap:anywhere}
+.report-actions{display:flex;gap:10px;flex-wrap:wrap}
+.filters{position:sticky;top:8px;z-index:5;display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 16px;margin:22px 0 22px;padding:14px 18px;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 24px -18px rgba(20,32,42,.5)}
+.filters label{display:flex;flex-direction:column;gap:4px;font-size:.88rem;color:var(--mute);font-weight:600}
+.filters input,.filters select{font:400 1rem var(--body);padding:8px 10px;border:1px solid #B5BDC4;border-radius:8px;background:#fff;color:var(--ink);min-width:150px}
+.filters .btn{margin-left:auto}
+
+.kpis{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 30px;padding:0}
+.kpi{flex:1 1 150px;padding:16px 18px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.kpi.lead{flex:2 1 270px;background:var(--deep);border-color:var(--deep);color:#fff;position:relative;overflow:hidden}
+.kpi.lead::after{content:"";position:absolute;right:-18px;top:-18px;width:64px;height:64px;background:var(--tag);transform:rotate(45deg)}
+.kpi dt{color:var(--mute);font-size:.92rem;font-weight:600}
+.kpi.lead dt{color:#A9CBC7}
+.kpi dd{white-space:nowrap;margin:4px 0 0;font:700 clamp(1.7rem,2.6vw,2.3rem)/1.1 var(--display)}
+.kpi.lead dd{font-size:clamp(2.1rem,3.2vw,2.7rem)}
+.kpi dd.up{color:var(--teal-dark)} .kpi dd.down{color:var(--alert)}
+
+.board{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:36px;align-items:start}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.chart:not(.table-wrap){display:flex;align-items:center}
+.chart:not(.table-wrap) svg{flex:1 1 auto;min-width:0}
+.chart{margin:0;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 24px -22px rgba(20,32,42,.6)}
+.chart svg{display:block;width:100%;height:auto}
+.chart.wide{grid-column:1/-1}
+.sticky{position:sticky;top:96px}
+.table-wrap h2{font-size:1.15rem;margin-bottom:10px} .table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #EEF0EB}
+td:first-child,td .pill{white-space:nowrap}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:600;font-size:.88rem}
+.pill.high{background:var(--mint);color:var(--teal-dark)} .pill.low{background:#F9DCD8;color:var(--alert)} th{font-size:.9rem;color:var(--mute)}
+tbody tr:hover{background:var(--tag-soft)}
+.quality{margin-top:36px;max-width:80ch;color:var(--mute)}
+.quality summary{cursor:pointer;font-weight:600;color:var(--ink)}
+code{background:#E7ECE4;padding:1px 6px;border-radius:4px}
+.foot{padding:26px var(--pad);border-top:1px solid var(--line);color:var(--mute);font-size:.93rem}
+
+@media (max-width:1000px){
+  .hero-panel{grid-template-columns:1fr} .receipt{transform:none;margin-top:8px}
+  .board{grid-template-columns:1fr} .sticky{position:static;order:-1}
+  .steps,.gives{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .charts{grid-template-columns:1fr} .kpi.lead{flex-basis:100%}
+  .filters{position:static} .filters .btn{margin-left:0}
+  .awning{height:20px} .topbar{padding-top:32px}
+}
+@media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important;scroll-behavior:auto!important} }
+@media print{
+  body{background:#fff}
+  .awning,.topbar,.filters,.foot,.flashes,.report-actions,.busy{display:none!important}
+  .board{grid-template-columns:1fr} .sticky{position:static;order:-1}
+  .receipt{transform:none;box-shadow:none;border:1px solid var(--line)} .receipt::after{display:none}
+  .chart{break-inside:avoid;box-shadow:none} .report{padding:0}
+  @page{margin:14mm}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="awning" aria-hidden="true"></div>
+  <div class="topbar">
+    <button class="brand" id="brand" type="button" aria-label="ShopSage home">
+      <svg width="30" height="30" viewBox="0 0 26 26" aria-hidden="true"><path d="M3 3h11l9 9-11 11L3 14z" fill="#F4B400"/><circle cx="8" cy="8" r="2" fill="#17212B"/></svg>
+      <span>ShopSage</span>
+    </button>
+    <nav><button class="linkbtn" id="nav-sample" type="button">Download sample CSV</button></nav>
+  </div>
+</header>
+
+<div class="flashes" id="flash" role="status" aria-live="polite"></div>
+<div class="busy" id="busy" role="status" hidden><span class="spin"></span>Reading your file…</div>
+
+<!-- ============ HOME ============ -->
+<main id="home">
+  <section class="hero-panel">
+    <div>
+      <p class="chip">Free and private: your file never leaves this browser</p>
+      <h1>Your sales CSV, read back to you.</h1>
+      <p class="lead">Upload a file of retail sales. ShopSage cleans it, draws the charts, forecasts the next three months and tells you in plain words what is worth acting on.</p>
+      <div class="upload">
+        <label class="drop" id="drop" for="file">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+          <span>
+            <span class="drop-title" id="file-name">Choose a CSV file or drop it here</span>
+            <span class="drop-hint">Works with exports from Excel, Tally, Shopify, Square or any till.</span>
+          </span>
+          <input id="file" type="file" accept=".csv,text/csv">
+        </label>
+        <div class="actions">
+          <button class="btn tag" id="btn-sample" type="button">Try with sample shop data</button>
+        </div>
+      </div>
+    </div>
+    <aside class="receipt" aria-label="Example of a ShopSage read">
+      <h2>This week's read</h2>
+      <p class="receipt-sub">Example from the sample data</p>
+      <ul class="ledger">
+        <li><span>Month on month</span><i></i><b>+11.2%</b></li>
+        <li><span>Best category</span><i></i><b>Home &amp; Kitchen</b></li>
+        <li><span>Products that matter</span><i></i><b>5 of 20</b></li>
+        <li><span>Busiest weekday</span><i></i><b>Sat</b></li>
+        <li><span>Forecast next month</span><i></i><b>795.6K</b></li>
+        <li><span>Unusual days</span><i></i><b>6</b></li>
+        <li><span>Customers at risk</span><i></i><b>91</b></li>
+      </ul>
+      <svg class="spark" viewBox="0 0 260 60" aria-hidden="true">
+        <polyline fill="none" stroke="#0E7C7B" stroke-width="2.4" stroke-linejoin="round" points="2,44 22,40 42,42 62,30 82,33 102,22 122,27 142,12 162,18 182,8"/>
+        <polyline fill="none" stroke="#C99700" stroke-width="2.4" stroke-dasharray="5 4" points="182,8 212,36 238,42 258,30"/>
+      </svg>
+      <p class="receipt-foot">Seven checks, one page, one PDF.</p>
+    </aside>
+  </section>
+
+  <div class="below">
+    <section aria-labelledby="h-how">
+      <h2 id="h-how">From file to findings in three steps</h2>
+      <ol class="steps">
+        <li><strong>Add your CSV</strong><span>Drop in the file. Columns are matched by name, so "Order Date", "Revenue" or "Qty" all work.</span></li>
+        <li><strong>Check the report</strong><span>Charts, a forecast and a plain-language summary appear at once. Filter by dates, region or category.</span></li>
+        <li><strong>Save it</strong><span>Press Save as PDF to share the report with your team or keep it for your records.</span></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="h-gives">
+      <h2 id="h-gives">What you get</h2>
+      <div class="gives">
+        <div><span class="badge"><svg class="ic" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></span><strong>Forecast</strong><p>The next three months, adjusted for seasonality once you have two years of data.</p></div>
+        <div><span class="badge"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.5"/></svg></span><strong>Unusual days</strong><p>Spikes and slumps flagged for their weekday, so a quiet Monday doesn't raise a false alarm.</p></div>
+        <div><span class="badge"><svg class="ic" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span><strong>80/20 products</strong><p>See which few products bring in most of your sales and deserve shelf space.</p></div>
+        <div><span class="badge"><svg class="ic" viewBox="0 0 24 24"><path d="M3 5h18v16H3zM3 10h18M9 5v16"/></svg></span><strong>Busy days heatmap</strong><p>Average daily sales by weekday and month, for staffing and stock decisions.</p></div>
+        <div><span class="badge"><svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16.5 5.5a3 3 0 010 5.8M18 14.8c1.7.7 3 2.3 3 5.2"/></svg></span><strong>Customer groups</strong><p>Champions, recent buyers and good customers who have gone quiet.</p></div>
+        <div><span class="badge"><svg class="ic" viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7zM15 3v4h4M10 13h6M10 17h6"/></svg></span><strong>PDF report</strong><p>One click to a clean, printable report with every chart and finding.</p></div>
+      </div>
+    </section>
+
+    <section class="needs" aria-labelledby="h-needs">
+      <h2 id="h-needs">What your file needs</h2>
+      <p><strong>Required:</strong> a date column and a sales column (or Quantity and Price).</p>
+      <p><strong>Optional:</strong> Product, Category, Region and Customer. Each one unlocks more charts.</p>
+    </section>
+  </div>
+</main>
+
+<!-- ============ REPORT ============ -->
+<main id="report" class="report" hidden>
+  <div class="report-top">
+    <div class="report-head">
+      <h1>Sales report</h1>
+      <p class="meta" id="meta"></p>
+    </div>
+    <div class="report-actions">
+      <button class="btn primary" id="nav-pdf" type="button">Save as PDF</button>
+      <button class="btn ghost" id="nav-new" type="button">Upload another file</button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <label>From <input type="date" id="f-start"></label>
+    <label>To <input type="date" id="f-end"></label>
+    <label id="lbl-region">Region <select id="f-region"></select></label>
+    <label id="lbl-category">Category <select id="f-category"></select></label>
+    <button class="btn ghost small" id="f-reset" type="button">Reset filters</button>
+  </div>
+
+  <dl class="kpis" id="kpis"></dl>
+
+  <div class="board">
+    <div class="charts" id="charts"></div>
+    <aside class="receipt sticky" aria-label="Key findings">
+      <h2>What the data says</h2>
+      <p class="receipt-sub" id="rs"></p>
+      <ul class="ledger" id="ledger"></ul>
+    </aside>
+  </div>
+  <details class="quality" id="quality"></details>
+</main>
+
+<footer class="foot">ShopSage is a mini project built with HTML, CSS and JavaScript. Everything runs in your browser, so no data leaves your computer.</footer>
+<noscript><p class="flash error">ShopSage needs JavaScript. Please turn it on in your browser.</p></noscript>
+
+<script>
+"use strict";
+/* =====================================================================
+   1. HELPERS
+   ===================================================================== */
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WEEKDAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DAY = 86400000;
+const INK="#17212B", TEAL="#0E7C7B", TAG="#F4B400", ALERT="#C0392B", MUTE="#6B7785", LINE="#D9DDD5";
+const CYCLE=[TEAL,TAG,INK,ALERT,"#7FB7B5","#B8C0C9","#E3C77A"];
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const mean = a => a.reduce((s,v)=>s+v,0)/a.length;
+const median = a => { const s=[...a].sort((x,y)=>x-y), n=s.length, m=n>>1; return n%2 ? s[m] : (s[m-1]+s[m])/2; };
+const short = (s,n=14) => s.length<=n ? s : s.slice(0,n-1)+"…";
+
+function fmt(x){
+  if (x==null || !isFinite(x)) return "-";
+  const a=Math.abs(x);
+  if (a>=1e9) return (x/1e9).toFixed(2)+"B";
+  if (a>=1e6) return (x/1e6).toFixed(2)+"M";
+  if (a>=1e3) return (x/1e3).toFixed(1)+"K";
+  return Math.round(x).toLocaleString("en-US");
+}
+const dowOf   = t => (new Date(t).getUTCDay()+6)%7;      // Mon=0 ... Sun=6
+const monthOf = t => new Date(t).getUTCMonth()+1;        // 1..12
+const iso     = t => new Date(t).toISOString().slice(0,10);
+function dLabel(t){ const d=new Date(t); return `${WEEKDAYS[dowOf(t)]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; }
+function shortDate(t,withDay=true){ const d=new Date(t); return `${withDay?d.getUTCDate()+" ":""}${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; }
+
+function niceScale(max,ticks=5){
+  if (!(max>0)) return {max:1,step:0.2};
+  const raw=max/ticks, mag=Math.pow(10,Math.floor(Math.log10(raw))), n=raw/mag;
+  const step=(n<=1?1:n<=2?2:n<=5?5:10)*mag;
+  return {max:Math.ceil(max/step-1e-9)*step, step};
+}
+
+/* =====================================================================
+   2. CSV READING AND CLEANING
+   ===================================================================== */
+function parseCSV(text){
+  text = text.replace(/^\uFEFF/,"");
+  const first = text.split(/\r?\n/,1)[0] || "";
+  let delim=",", best=-1;
+  for (const d of [",",";","\t","|"]) { const c=first.split(d).length; if (c>best){best=c;delim=d;} }
+  const rows=[]; let row=[], field="", inQ=false;
+  for (let i=0;i<text.length;i++){
+    const ch=text[i];
+    if (inQ){
+      if (ch==='"'){ if (text[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=ch;
+    } else if (ch==='"' && field==="") inQ=true;
+    else if (ch===delim){ row.push(field); field=""; }
+    else if (ch==="\n" || ch==="\r"){
+      if (ch==="\r" && text[i+1]==="\n") i++;
+      row.push(field); field="";
+      if (row.some(c=>c.trim()!=="")) rows.push(row);
+      row=[];
+    } else field+=ch;
+  }
+  row.push(field);
+  if (row.some(c=>c.trim()!=="")) rows.push(row);
+  return rows;
+}
+
+const norm = s => String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+const ROLE_ALIASES = {
+  date: ["date","order date","orderdate","invoice date","invoicedate","transaction date","sale date","sales date","day","timestamp","purchase date"],
+  product: ["product","product name","item","item name","sku","description"],
+  category: ["category","product category","sub category","department","category name"],
+  region: ["region","city","state","store","branch","location","country","area"],
+  customer: ["customer","customer id","customerid","customer name","client","cust id"],
+  quantity: ["quantity","qty","units","units sold","quantity sold"],
+  price: ["price","unit price","unitprice","rate","selling price"],
+  amount: ["amount","sales","revenue","total","total sales","total amount","sale amount","line total","turnover"],
+};
+
+function parseDate(v, dayFirst){
+  v = String(v ?? "").trim();
+  if (!v) return null;
+  let m = v.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return mkDate(+m[1], +m[2], +m[3]);
+  m = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if (m){
+    let a=+m[1], b=+m[2], y=+m[3]; if (y<100) y+=2000;
+    if (a>12) return mkDate(y,b,a);
+    if (b>12) return mkDate(y,a,b);
+    return dayFirst ? mkDate(y,b,a) : mkDate(y,a,b);
+  }
+  if (/^\d{5}(\.\d+)?$/.test(v)){ const n=+v; if (n>20000 && n<80000) return Math.floor(Date.UTC(1899,11,30)+n*DAY); }  // Excel serial
+  const t = Date.parse(v);
+  if (isNaN(t)) return null;
+  const d = new Date(t);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function mkDate(y,m,d){
+  if (m<1||m>12||d<1||d>31) return null;
+  const t=Date.UTC(y,m-1,d);
+  return new Date(t).getUTCMonth()===m-1 ? t : null;
+}
+function num(v){
+  const s=String(v ?? "").replace(/[^0-9.\-]/g,"");
+  if (s===""||s==="-"||s===".") return NaN;
+  return parseFloat(s);
+}
+function detectDayFirst(values){
+  const re=/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/;
+  for (const v of values){ const m=String(v??"").trim().match(re); if(!m) continue; if(+m[1]>12) return true; if(+m[2]>12) return false; }
+  return true;
+}
+
+function loadCSV(text){
+  const table = parseCSV(text);
+  if (table.length<2) throw new Error("The CSV file has no data rows.");
+  const header = table[0].map(h=>h.trim());
+  const body = table.slice(1);
+
+  const lookup = {}; header.forEach((h,i)=>{ if(!(norm(h) in lookup)) lookup[norm(h)]=i; });
+  const ci={}; const used=new Set();
+  for (const [role,names] of Object.entries(ROLE_ALIASES)){
+    for (const n of names){ const idx=lookup[norm(n)]; if (idx!==undefined && !used.has(idx)){ ci[role]=idx; used.add(idx); break; } }
+  }
+  if (ci.date===undefined){
+    for (let c=0;c<header.length;c++){
+      if (used.has(c)) continue;
+      const sample=body.slice(0,200).map(r=>r[c]);
+      const ok=sample.filter(v=>parseDate(v,true)!==null).length;
+      if (sample.length && ok/sample.length>0.8){ ci.date=c; used.add(c); break; }
+    }
+  }
+  if (ci.date===undefined) throw new Error("No date column found. Name it 'Date' or 'Order Date'.");
+  if (ci.amount===undefined && !(ci.quantity!==undefined && ci.price!==undefined))
+    throw new Error("No sales column found. Name it 'Sales', 'Revenue' or 'Amount', or include both 'Quantity' and 'Price'.");
+
+  const dayFirst = detectDayFirst(body.map(r=>r[ci.date]));
+  const txt = v => { v=String(v??"").trim(); return v===""?"Unknown":v; };
+  const has = {product:ci.product!==undefined, category:ci.category!==undefined, region:ci.region!==undefined,
+               customer:ci.customer!==undefined, quantity:ci.quantity!==undefined};
+  const q={rows_in:body.length, rows_used:0, duplicates_removed:0, bad_dates_removed:0, bad_amounts_removed:0, non_positive_removed:0};
+  const seen=new Set(), rows=[];
+  for (const r of body){
+    const key=r.join("\u0001");
+    if (seen.has(key)){ q.duplicates_removed++; continue; }
+    seen.add(key);
+    const t=parseDate(r[ci.date],dayFirst);
+    if (t===null){ q.bad_dates_removed++; continue; }
+    const amount = ci.amount!==undefined ? num(r[ci.amount]) : num(r[ci.quantity])*num(r[ci.price]);
+    if (!isFinite(amount)){ q.bad_amounts_removed++; continue; }
+    if (amount<=0){ q.non_positive_removed++; continue; }
+    rows.push({
+      t, amount,
+      qty: has.quantity ? num(r[ci.quantity]) : NaN,
+      product: has.product ? txt(r[ci.product]) : null,
+      category: has.category ? txt(r[ci.category]) : null,
+      region: has.region ? txt(r[ci.region]) : null,
+      customer: has.customer ? txt(r[ci.customer]) : null,
+    });
+  }
+  if (!rows.length) throw new Error("No usable rows left after cleaning. Check the date and sales columns.");
+  rows.sort((a,b)=>a.t-b.t);
+  q.rows_used=rows.length;
+  const columns={}; for (const [role,idx] of Object.entries(ci)) columns[role]=header[idx];
+  return {rows, has, quality:q, columns};
+}
+
+/* =====================================================================
+   3. ANALYTICS
+   ===================================================================== */
+function linfit(y){
+  const n=y.length; let sx=0,sy=0,sxx=0,sxy=0;
+  for (let i=0;i<n;i++){ sx+=i; sy+=y[i]; sxx+=i*i; sxy+=i*y[i]; }
+  const slope=(n*sxy-sx*sy)/(n*sxx-sx*sx);
+  return [slope,(sy-slope*sx)/n];
+}
+
+function forecastMonthly(months, periods=3){
+  if (months.length<4) return null;
+  const seasonal = months.length>=24;
+  let factors=null;
+  if (seasonal){
+    const sums=Array(12).fill(0), cnt=Array(12).fill(0);
+    months.forEach(m=>{ sums[m.m-1]+=m.sum; cnt[m.m-1]++; });
+    const means=sums.map((s,i)=>cnt[i]?s/cnt[i]:NaN);
+    const grand=mean(means.filter(v=>!isNaN(v)));
+    factors=means.map(v=>v/grand);
+  }
+  const base=months.map(m=>seasonal ? m.sum/factors[m.m-1] : m.sum).slice(-24);
+  const [slope,icpt]=linfit(base);
+  const sigma=Math.sqrt(mean(base.map((v,i)=>{const e=v-(slope*i+icpt);return e*e;})));
+  const last=months[months.length-1], out=[];
+  for (let k=1;k<=periods;k++){
+    let y=last.y, mo=last.m-1+k; y+=Math.floor(mo/12); mo%=12;
+    const sc=seasonal?factors[mo]:1;
+    const pred=Math.max((slope*(base.length-1+k)+icpt)*sc,0);
+    out.push({t:Date.UTC(y,mo,1), pred, low:Math.max(pred-1.5*sigma*sc,0), high:pred+1.5*sigma*sc});
+  }
+  return out;
+}
+
+function findAnomalies(dayMap){
+  const days=[...dayMap.entries()].sort((a,b)=>a[0]-b[0]);
+  if (days.length<56) return [];
+  const byDow=Array.from({length:7},()=>[]);
+  days.forEach(([t,v])=>byDow[dowOf(t)].push(v));
+  const wmed=byDow.map(a=>a.length?median(a):1);
+  const lr=days.map(([t,v])=>Math.log(v/wmed[dowOf(t)]));
+  const n=lr.length;
+  const level=lr.map((_,i)=>median(lr.slice(Math.max(0,i-15),Math.min(n,i+16))));
+  const dev=lr.map((v,i)=>v-level[i]);
+  const dm=median(dev), mad=median(dev.map(d=>Math.abs(d-dm)));
+  if (!mad) return [];
+  const flagged=[];
+  dev.forEach((d,i)=>{ const s=0.6745*(d-dm)/mad; if (Math.abs(s)>4.5) flagged.push({t:days[i][0], value:days[i][1], kind:s>0?"high":"low", score:s}); });
+  flagged.sort((a,b)=>Math.abs(b.score)-Math.abs(a.score));
+  return flagged.slice(0,10).sort((a,b)=>a.t-b.t);
+}
+
+function computeRFM(rows){
+  const g=new Map();
+  for (const x of rows){
+    const c=g.get(x.customer) || {id:x.customer,last:0,F:0,M:0};
+    c.last=Math.max(c.last,x.t); c.F++; c.M+=x.amount; g.set(x.customer,c);
+  }
+  const list=[...g.values()].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+  const n=list.length;
+  if (n<8) return null;
+  const snapshot=rows[rows.length-1].t+DAY;
+  list.forEach(c=>c.R=Math.round((snapshot-c.last)/DAY));
+  const score=(key,asc)=>{
+    const idx=list.map((_,i)=>i).sort((a,b)=>{
+      const d=list[a][key]-list[b][key]; return d!==0 ? (asc?d:-d) : a-b;
+    });
+    idx.forEach((i,pos)=>{ list[i]["s"+key]=Math.floor(pos*4/n)+1; });
+  };
+  score("R",false); score("F",true); score("M",true);
+  const order=["Champions","Recent buyers","At risk","Lost / low value"];
+  const table=Object.fromEntries(order.map(k=>[k,{customers:0,revenue:0}]));
+  for (const c of list){
+    const seg = c.sR>=3&&c.sF>=3 ? "Champions" : c.sR>=3 ? "Recent buyers" : (c.sF>=3||c.sM>=3) ? "At risk" : "Lost / low value";
+    table[seg].customers++; table[seg].revenue+=c.M;
+  }
+  return {order, table};
+}
+
+function sumBy(rows,key){
+  const m=new Map(); for (const x of rows) m.set(x[key],(m.get(x[key])||0)+x.amount);
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+}
+
+function analyse(rows, has){
+  const r={has};
+  let revenue=0, units=0;
+  const custs=new Set(), monthMap=new Map(), dayMap=new Map();
+  for (const x of rows){
+    revenue+=x.amount; if (has.quantity && isFinite(x.qty)) units+=x.qty;
+    if (has.customer) custs.add(x.customer);
+    const d=new Date(x.t), mk=d.getUTCFullYear()*12+d.getUTCMonth();
+    monthMap.set(mk,(monthMap.get(mk)||0)+x.amount);
+    dayMap.set(x.t,(dayMap.get(x.t)||0)+x.amount);
+  }
+  const keys=[...monthMap.keys()], minK=Math.min(...keys), maxK=Math.max(...keys);
+  const months=[];
+  for (let k=minK;k<=maxK;k++) months.push({y:Math.floor(k/12), m:k%12+1, sum:monthMap.get(k)||0, t:Date.UTC(Math.floor(k/12),k%12,1)});
+  let growth=null;
+  if (months.length>=2 && months[months.length-2].sum>0) growth=(months[months.length-1].sum/months[months.length-2].sum-1)*100;
+
+  r.months=months; r.dayMap=dayMap;
+  r.days=[...dayMap.entries()].sort((a,b)=>a[0]-b[0]);
+  r.forecast=forecastMonthly(months);
+  r.anomalies=findAnomalies(dayMap);
+  r.kpis={revenue, transactions:rows.length, avg:revenue/rows.length, units:has.quantity?units:null,
+          customers:has.customer?custs.size:null, growth, start:rows[0].t, end:rows[rows.length-1].t};
+
+  const hs=Array.from({length:7},()=>Array(12).fill(0)), hc=Array.from({length:7},()=>Array(12).fill(0));
+  const wsum=Array(7).fill(0), wcnt=Array(7).fill(0);
+  for (const [t,v] of r.days){ const d=dowOf(t), m=monthOf(t)-1; hs[d][m]+=v; hc[d][m]++; wsum[d]+=v; wcnt[d]++; }
+  r.heat=hs.map((row,d)=>row.map((s,m)=>hc[d][m]?s/hc[d][m]:null));
+  r.weekdayAvg=wsum.map((s,d)=>wcnt[d]?s/wcnt[d]:null);
+
+  r.breakdown=null;
+  if (has.category) r.breakdown={title:"Sales by category", what:"Best category", items:sumBy(rows,"category").slice(0,8)};
+  else if (has.product) r.breakdown={title:"Top products", what:"Best product", items:sumBy(rows,"product").slice(0,8)};
+
+  r.region=null;
+  if (has.region){
+    let reg=sumBy(rows,"region");
+    if (reg.length>6) reg=[...reg.slice(0,6),["Other",reg.slice(6).reduce((s,e)=>s+e[1],0)]];
+    r.region=reg;
+  }
+  r.pareto=null;
+  if (has.product){
+    const p=sumBy(rows,"product");
+    if (p.length>=5){
+      let cum=0; const cumShare=p.map(e=>(cum+=e[1])/revenue*100);
+      r.pareto={items:p, cum:cumShare, n80:cumShare.filter(v=>v<80).length+1, total:p.length};
+    }
+  }
+  r.rfm=(has.customer && custs.size>=8) ? computeRFM(rows) : null;
+  r.insights=buildInsights(r);
+  return r;
+}
+
+function buildInsights(r){
+  const out=[], k=r.kpis, m=r.months;
+  if (k.growth!==null && m.length>=2)
+    out.push({label:"Month on month", value:`${k.growth>=0?"+":""}${k.growth.toFixed(1)}%`,
+              note:`${shortDate(m[m.length-1].t,false)} against ${shortDate(m[m.length-2].t,false)}`});
+  if (r.breakdown)
+    out.push({label:r.breakdown.what, value:r.breakdown.items[0][0], note:`${(r.breakdown.items[0][1]/k.revenue*100).toFixed(0)}% of all sales`});
+  if (r.pareto)
+    out.push({label:"Products that matter", value:`${r.pareto.n80} of ${r.pareto.total}`, note:"bring in 80% of sales; keep these in stock"});
+  const wd=r.weekdayAvg.map((v,i)=>[v,i]).filter(e=>e[0]!==null);
+  if (wd.length>=5){
+    const hi=wd.reduce((a,b)=>b[0]>a[0]?b:a), lo=wd.reduce((a,b)=>b[0]<a[0]?b:a);
+    out.push({label:"Busiest weekday", value:WEEKDAYS[hi[1]], note:`averages ${fmt(hi[0])} a day; ${WEEKDAYS[lo[1]]} is slowest at ${fmt(lo[0])}`});
+  }
+  if (m.length>=6){
+    const s=Array(12).fill(0), c=Array(12).fill(0);
+    m.forEach(x=>{ s[x.m-1]+=x.sum; c[x.m-1]++; });
+    const means=s.map((v,i)=>c[i]?v/c[i]:-Infinity);
+    const peak=means.indexOf(Math.max(...means));
+    const typical=mean(means.filter(v=>isFinite(v)));
+    out.push({label:"Peak month", value:MONTHS[peak], note:`averages ${fmt(means[peak])} against ${fmt(typical)} for a typical month`});
+  }
+  if (r.forecast && m.length){
+    const f=r.forecast[0], last=m[m.length-1].sum, ch=last?(f.pred/last-1)*100:0;
+    out.push({label:`Forecast ${shortDate(f.t,false)}`, value:fmt(f.pred), note:`${ch>=0?"+":""}${ch.toFixed(0)}% on last month; likely range ${fmt(f.low)} to ${fmt(f.high)}`});
+  }
+  if (r.anomalies.length){
+    const l=r.anomalies[r.anomalies.length-1];
+    out.push({label:"Unusual days", value:String(r.anomalies.length), note:`latest: ${shortDate(l.t)}, unusually ${l.kind}`});
+  }
+  if (r.rfm){
+    const risk=r.rfm.table["At risk"];
+    if (risk.customers>0) out.push({label:"Customers at risk", value:String(risk.customers), note:`good buyers who have gone quiet; ${fmt(risk.revenue)} in past sales`});
+  }
+  return out;
+}
+
+/* =====================================================================
+   4. CHARTS (plain SVG, no libraries)
+   ===================================================================== */
+const svgOpen = (w,h,label) => `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">`;
+const txtEl = (x,y,s,o={}) => `<text x="${x}" y="${y}" font-size="${o.size||12}" fill="${o.fill||MUTE}" text-anchor="${o.anchor||"start"}"${o.weight?` font-weight="${o.weight}"`:""}${o.rot?` transform="rotate(${o.rot} ${x} ${y})"`:""}>${esc(s)}</text>`;
+const title = (x,y,s) => txtEl(x,y,s,{size:15,fill:INK,weight:700});
+
+function chartTrend(r){
+  const m=r.months; if (m.length<2) return null;
+  const fc=r.forecast||[], W=800,H=340,L=58,R=16,T=52,B=34, total=m.length+fc.length;
+  const sc=niceScale(Math.max(...m.map(x=>x.sum),...fc.map(x=>x.high)));
+  const X=i=>L+(W-L-R)*i/(total-1), Y=v=>T+(H-T-B)*(1-v/sc.max);
+  let s=svgOpen(W,H,"Line chart of monthly sales with a three month forecast")+title(L-50,22,"Monthly sales and 3-month forecast");
+  for (let v=0; v<=sc.max+1e-9; v+=sc.step) s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#ECEEE9"/>`+txtEl(L-8,Y(v)+4,fmt(v),{anchor:"end"});
+  const stepX=Math.ceil(total/9);
+  for (let i=0;i<total;i+=stepX){ const t=i<m.length?m[i].t:fc[i-m.length].t; s+=txtEl(X(i),H-12,`${MONTHS[new Date(t).getUTCMonth()]} ${String(new Date(t).getUTCFullYear()).slice(2)}`,{anchor:i===0?"start":"middle"}); }
+  if (fc.length){
+    const up=fc.map((f,i)=>`${X(m.length+i)},${Y(f.high)}`), dn=fc.map((f,i)=>`${X(m.length+i)},${Y(f.low)}`).reverse();
+    s+=`<polygon points="${up.concat(dn).join(" ")}" fill="${TAG}" fill-opacity=".28"/>`;
+    s+=`<polyline fill="none" stroke="#C99700" stroke-width="2.2" stroke-dasharray="6 4" points="${[`${X(m.length-1)},${Y(m[m.length-1].sum)}`,...fc.map((f,i)=>`${X(m.length+i)},${Y(f.pred)}`)].join(" ")}"/>`;
+    fc.forEach((f,i)=>{ s+=`<circle cx="${X(m.length+i)}" cy="${Y(f.pred)}" r="4" fill="#C99700"><title>${esc(shortDate(f.t,false))} forecast: ${fmt(f.pred)} (range ${fmt(f.low)} to ${fmt(f.high)})</title></circle>`; });
+  }
+  s+=`<polyline fill="none" stroke="${TEAL}" stroke-width="2.2" points="${m.map((x,i)=>`${X(i)},${Y(x.sum)}`).join(" ")}"/>`;
+  m.forEach((x,i)=>{ s+=`<circle cx="${X(i)}" cy="${Y(x.sum)}" r="3.4" fill="${TEAL}"><title>${esc(shortDate(x.t,false))}: ${fmt(x.sum)}</title></circle>`; });
+  s+=`<line x1="${L+4}" x2="${L+26}" y1="40" y2="40" stroke="${TEAL}" stroke-width="2.2"/>`+txtEl(L+32,44,"Actual sales",{fill:INK})
+    +(fc.length?`<line x1="${L+130}" x2="${L+152}" y1="40" y2="40" stroke="#C99700" stroke-width="2.2" stroke-dasharray="6 4"/>`+txtEl(L+158,44,"Forecast",{fill:INK})
+      +`<rect x="${L+232}" y="34" width="22" height="11" fill="${TAG}" fill-opacity=".35"/>`+txtEl(L+260,44,"Likely range",{fill:INK}):"");
+  return s+"</svg>";
+}
+
+function barsH(items,{heading,label,colors,notes,W=520,fmtV=fmt}){
+  const rowH=38, T=48, L=150, R=notes?118:84, H=T+items.length*rowH+12;
+  const max=Math.max(...items.map(i=>i[1]));
+  let s=svgOpen(W,H,label)+title(10,24,heading);
+  items.forEach((it,i)=>{
+    const y=T+i*rowH, w=(W-L-R)*it[1]/max;
+    s+=txtEl(L-10,y+19,short(String(it[0]),19),{anchor:"end",fill:INK,size:13.5})
+      +`<rect x="${L}" y="${y+4}" width="${Math.max(w,1)}" height="26" rx="3" fill="${colors?colors[i]:TEAL}"><title>${esc(it[0])}: ${fmtV(it[1])}</title></rect>`
+      +txtEl(L+w+8,y+22,notes?notes[i]:fmtV(it[1]),{fill:INK,size:13});
+  });
+  return s+"</svg>";
+}
+function chartBreakdown(r){ return r.breakdown ? barsH(r.breakdown.items,{heading:r.breakdown.title,label:"Bar chart of "+r.breakdown.title.toLowerCase()}) : null; }
+
+function chartRegion(r){
+  const items=r.region; if (!items || items.length<2) return null;
+  const W=520,H=340,cx=150,cy=190,rad=92,sw=42, C=2*Math.PI*rad, total=items.reduce((s,e)=>s+e[1],0);
+  let s=svgOpen(W,H,"Donut chart of sales share by region")+title(10,22,"Share of sales by region"), off=0;
+  items.forEach((it,i)=>{
+    const len=C*it[1]/total;
+    s+=`<circle cx="${cx}" cy="${cy}" r="${rad}" fill="none" stroke="${CYCLE[i%CYCLE.length]}" stroke-width="${sw}" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})"><title>${esc(it[0])}: ${fmt(it[1])}</title></circle>`;
+    off+=len;
+    s+=`<rect x="290" y="${100+i*28}" width="14" height="14" fill="${CYCLE[i%CYCLE.length]}"/>`+txtEl(312,113+i*28,`${short(String(it[0]),14)}  ${(it[1]/total*100).toFixed(0)}%`,{fill:INK,size:14});
+  });
+  return s+"</svg>";
+}
+
+function chartPareto(r){
+  const p=r.pareto; if (!p) return null;
+  const items=p.items.slice(0,15), cum=p.cum.slice(0,15), W=800,H=380,L=58,R=48,T=48,B=92;
+  const sc=niceScale(Math.max(...items.map(i=>i[1]))), bw=(W-L-R)/items.length;
+  const Y=v=>T+(H-T-B)*(1-v/sc.max), Y2=v=>T+(H-T-B)*(1-v/100);
+  let s=svgOpen(W,H,"Pareto chart showing which products bring in 80 percent of sales")+title(10,22,`Pareto: ${p.n80} of ${p.total} products bring in 80% of sales`);
+  for (let v=0; v<=sc.max+1e-9; v+=sc.step) s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#ECEEE9"/>`+txtEl(L-8,Y(v)+4,fmt(v),{anchor:"end"});
+  [0,20,40,60,80,100].forEach(v=>{ s+=txtEl(W-R+8,Y2(v)+4,v+"%"); });
+  items.forEach((it,i)=>{
+    const x=L+i*bw+bw*.15, h=(H-T-B)*it[1]/sc.max;
+    s+=`<rect x="${x}" y="${H-B-h}" width="${bw*.7}" height="${h}" fill="${TEAL}"><title>${esc(it[0])}: ${fmt(it[1])} (${cum[i].toFixed(0)}% cumulative)</title></rect>`;
+    s+=txtEl(x+bw*.35+4,H-B+14,short(String(it[0]),14),{anchor:"end",rot:-40,size:11});
+  });
+  s+=`<line x1="${L}" x2="${W-R}" y1="${Y2(80)}" y2="${Y2(80)}" stroke="${ALERT}" stroke-dasharray="5 4"/>`+txtEl(W-R-4,Y2(80)-5,"80% of sales",{anchor:"end",fill:ALERT,size:11});
+  s+=`<polyline fill="none" stroke="${INK}" stroke-width="1.6" points="${cum.map((v,i)=>`${L+i*bw+bw/2},${Y2(v)}`).join(" ")}"/>`;
+  cum.forEach((v,i)=>{ s+=`<circle cx="${L+i*bw+bw/2}" cy="${Y2(v)}" r="3" fill="${INK}"/>`; });
+  return s+"</svg>";
+}
+
+function chartHeat(r){
+  const vals=r.heat.flat().filter(v=>v!==null); if (vals.length<7) return null;
+  const W=640,H=330,L=44,T=48,B=30,cbW=18, cw=(W-L-92)/12, ch=(H-T-B)/7;
+  const lo=Math.min(...vals), hi=Math.max(...vals);
+  const stops=[[241,244,238],[154,207,203],[14,124,123],[10,79,79]];
+  const color=v=>{ const t=hi===lo?0:(v-lo)/(hi-lo)*3, i=Math.min(2,Math.floor(t)), f=t-i;
+    return "rgb("+stops[i].map((c,k)=>Math.round(c+(stops[i+1][k]-c)*f)).join(",")+")"; };
+  let s=svgOpen(W,H,"Heatmap of average daily sales by weekday and month")+title(10,22,"Average daily sales by weekday and month");
+  MONTHS.forEach((mn,j)=>{ s+=txtEl(L+j*cw+cw/2,T-8,mn,{anchor:"middle",size:11}); });
+  WEEKDAYS.forEach((dn,i)=>{ s+=txtEl(L-8,T+i*ch+ch/2+4,dn,{anchor:"end",size:11}); });
+  r.heat.forEach((row,i)=>row.forEach((v,j)=>{
+    s+= v===null ? `<rect x="${L+j*cw}" y="${T+i*ch}" width="${cw}" height="${ch}" fill="#F6F7F4"/>`
+      : `<rect x="${L+j*cw}" y="${T+i*ch}" width="${cw}" height="${ch}" fill="${color(v)}"><title>${WEEKDAYS[i]} in ${MONTHS[j]}: ${fmt(v)} a day</title></rect>`;
+  }));
+  const bx=W-66;
+  s+=`<defs><linearGradient id="hg" x1="0" y1="1" x2="0" y2="0">${stops.map((c,i)=>`<stop offset="${i/3}" stop-color="rgb(${c})"/>`).join("")}</linearGradient></defs>`
+    +`<rect x="${bx}" y="${T}" width="${cbW}" height="${H-T-B}" fill="url(#hg)"/>`+txtEl(bx+cbW+4,T+8,fmt(hi),{size:10.5})+txtEl(bx+cbW+4,H-B,fmt(lo),{size:10.5});
+  return s+"</svg>";
+}
+
+function chartAnomalies(r){
+  const d=r.days; if (d.length<28) return null;
+  const W=800,H=320,L=58,R=16,T=52,B=34, t0=d[0][0], t1=d[d.length-1][0];
+  const sc=niceScale(Math.max(...d.map(e=>e[1])));
+  const X=t=>L+(W-L-R)*(t1===t0?0:(t-t0)/(t1-t0)), Y=v=>T+(H-T-B)*(1-v/sc.max);
+  let s=svgOpen(W,H,"Daily sales line with unusually high and low days marked")+title(10,22,"Unusual sales days");
+  for (let v=0; v<=sc.max+1e-9; v+=sc.step) s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#ECEEE9"/>`+txtEl(L-8,Y(v)+4,fmt(v),{anchor:"end"});
+  for (let i=0;i<=7;i++){ const t=t0+(t1-t0)*i/7; s+=txtEl(X(t),H-12,shortDate(t,false),{anchor:i===0?"start":i===7?"end":"middle",size:11}); }
+  s+=`<polyline fill="none" stroke="#9AA5B1" stroke-width=".9" points="${d.map(e=>`${X(e[0]).toFixed(1)},${Y(e[1]).toFixed(1)}`).join(" ")}"/>`;
+  r.anomalies.forEach(a=>{ s+=`<circle cx="${X(a.t)}" cy="${Y(a.value)}" r="5" fill="${a.kind==="high"?TEAL:ALERT}" stroke="${INK}"><title>${esc(dLabel(a.t))}: ${fmt(a.value)} (unusually ${a.kind})</title></circle>`; });
+  s+=`<line x1="${L+4}" x2="${L+26}" y1="40" y2="40" stroke="#9AA5B1"/>`+txtEl(L+32,44,"Daily sales",{fill:INK})
+    +`<circle cx="${L+130}" cy="40" r="5" fill="${TEAL}" stroke="${INK}"/>`+txtEl(L+140,44,"Unusually high",{fill:INK})
+    +`<circle cx="${L+250}" cy="40" r="5" fill="${ALERT}" stroke="${INK}"/>`+txtEl(L+260,44,"Unusually low",{fill:INK});
+  return s+"</svg>";
+}
+
+function chartSegments(r){
+  if (!r.rfm) return null;
+  const {order,table}=r.rfm, col={"Champions":TEAL,"Recent buyers":"#7FB7B5","At risk":TAG,"Lost / low value":"#B8C0C9"};
+  const items=order.map(k=>[k,table[k].revenue]);
+  return barsH(items,{heading:"Customer segments by lifetime sales",label:"Bar chart of customer segments by lifetime sales",
+    colors:order.map(k=>col[k]), notes:order.map(k=>`${table[k].customers} customers`)});
+}
+
+/* =====================================================================
+   5. SAMPLE DATA (so the app can be tried without a file)
+   ===================================================================== */
+function makeSampleCSV(){
+  const PRODUCTS=[["Basmati Rice 5kg","Grocery",320],["Cooking Oil 1L","Grocery",150],["Tea Powder 250g","Grocery",120],["Biscuit Pack","Grocery",30],
+    ["Cola 2L","Beverages",90],["Fruit Juice 1L","Beverages",110],["Bottled Water","Beverages",20],["Energy Drink","Beverages",125],
+    ["Shampoo 340ml","Personal Care",180],["Soap Pack","Personal Care",95],["Toothpaste","Personal Care",85],["Face Wash","Personal Care",210],
+    ["Earphones","Electronics",899],["Power Bank","Electronics",1499],["USB Cable","Electronics",249],["Phone Charger","Electronics",599],
+    ["Water Bottle","Home & Kitchen",349],["Lunch Box","Home & Kitchen",399],["Non-stick Pan","Home & Kitchen",1199],["Mixer Jar","Home & Kitchen",1899]];
+  const REGIONS=["North","South","East","West","Central"], regW=[.18,.30,.14,.26,.12];
+  const DOW=[.85,.85,.9,.95,1.15,1.45,1.3], MON=[.9,.85,.95,1,1,.9,.9,1,1.05,1.25,1.3,1.5];
+  const SPECIAL={"2023-03-18":5,"2023-10-21":4.2,"2024-02-14":4,"2024-08-15":5.5,"2023-06-07":.08,"2024-05-09":.06};
+  let seed=7; const rnd=()=>{ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return((t^t>>>14)>>>0)/4294967296; };
+  const gauss=()=>{ let u=0; while(!u) u=rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rnd()); };
+  const poisson=l=>{ if (l>40) return Math.max(0,Math.round(l+Math.sqrt(l)*gauss())); const L=Math.exp(-l); let k=0,p=1; do{k++;p*=rnd();}while(p>L); return k-1; };
+  const cumulative=w=>{ let c=0; return w.map(v=>c+=v); };
+  const pick=cum=>{ const u=rnd()*cum[cum.length-1]; let lo=0,hi=cum.length-1; while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<u) lo=mid+1; else hi=mid; } return lo; };
+
+  const pw=PRODUCTS.map((_,i)=>1/Math.pow(i+1,.9));
+  for (let i=pw.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [pw[i],pw[j]]=[pw[j],pw[i]]; }
+  const prodCum=cumulative(pw), regCum=cumulative(regW);
+
+  const NC=600, cw=[], cs=[], ce=[];
+  const t0=Date.UTC(2023,0,1), nDays=Math.round((Date.UTC(2024,11,31)-t0)/DAY)+1;
+  for (let i=0;i<NC;i++){ cw.push(Math.pow(1-rnd(),-1/1.6)-1+.2); cs.push(rnd()<.4?0:Math.floor(rnd()*300)); ce.push(rnd()<.3?200+Math.floor(rnd()*(nDays-200)):nDays); }
+
+  const lines=["Order Date,Order ID,Customer ID,Product,Category,Region,Quantity,Unit Price,Sales"]; let id=0;
+  for (let i=0;i<nDays;i++){
+    const t=t0+i*DAY, key=iso(t);
+    let lam=22*DOW[dowOf(t)]*MON[monthOf(t)-1]*(1+.2*i/nDays)*(SPECIAL[key]||1);
+    const n=poisson(lam); if (!n) continue;
+    const act=cw.map((w,c)=>cs[c]<=i&&ce[c]>=i?w:0), cCum=cumulative(act);
+    for (let k=0;k<n;k++){
+      const c=pick(cCum), p=PRODUCTS[pick(prodCum)], rg=REGIONS[pick(regCum)];
+      const qty=p[2]>800 ? [1,1,1,2][Math.floor(rnd()*4)] : 1+Math.floor(rnd()*4);
+      const disc=[0,0,0,0,.05,.1][Math.floor(rnd()*6)] ;
+      lines.push([key,"ORD"+String(++id).padStart(6,"0"),"C"+String(c+1).padStart(4,"0"),p[0],p[1],rg,qty,p[2],(qty*p[2]*(1-disc)).toFixed(2)].join(","));
+    }
+  }
+  return lines.join("\n");
+}
+
+/* Allow testing outside a browser */
+if (typeof module!=="undefined") module.exports={loadCSV,analyse,makeSampleCSV,chartTrend,chartBreakdown,chartRegion,chartPareto,chartHeat,chartAnomalies,chartSegments,parseDate};
+
+/* =====================================================================
+   6. PAGE BEHAVIOUR
+   ===================================================================== */
+if (typeof document!=="undefined") (function(){
+  const $=s=>document.querySelector(s);
+  let DATA=null;
+
+  function flash(msg,type="error"){ $("#flash").innerHTML = msg ? `<p class="flash ${type}">${esc(msg)}</p>` : ""; }
+  function show(view){
+    $("#home").hidden = view!=="home"; $("#report").hidden = view!=="report";
+    $("#nav-pdf").hidden = $("#nav-new").hidden = view!=="report";
+    window.scrollTo(0,0);
+  }
+
+  function open(text,filename){
+    try { const d=loadCSV(text); d.filename=filename; DATA=d; }
+    catch(err){ flash(err.message); show("home"); return; }
+    flash("");
+    // fill filter controls
+    const {rows,has}=DATA;
+    $("#f-start").min=$("#f-end").min=iso(rows[0].t); $("#f-start").max=$("#f-end").max=iso(rows[rows.length-1].t);
+    const fill=(sel,lbl,key,all)=>{
+      $(lbl).hidden=!has[key];
+      $(sel).innerHTML=`<option value="">${all}</option>`+(has[key]?[...new Set(rows.map(x=>x[key]))].sort().map(v=>`<option>${esc(v)}</option>`).join(""):"");
+    };
+    fill("#f-region","#lbl-region","region","All regions"); fill("#f-category","#lbl-category","category","All categories");
+    resetFilters(false);
+    show("report"); render(true);
+  }
+
+  function resetFilters(doRender=true){
+    ["#f-start","#f-end","#f-region","#f-category"].forEach(s=>$(s).value="");
+    if (doRender) render();
+  }
+
+  function render(animate=false){
+    const f={start:$("#f-start").value,end:$("#f-end").value,region:$("#f-region").value,category:$("#f-category").value};
+    const t0=f.start?Date.parse(f.start+"T00:00:00Z"):-Infinity, t1=f.end?Date.parse(f.end+"T00:00:00Z"):Infinity;
+    let rows=DATA.rows.filter(x=>x.t>=t0 && x.t<=t1 && (!f.region||x.region===f.region) && (!f.category||x.category===f.category));
+    if (!rows.length){ flash("No sales match those filters, so the full data is shown instead.","warn"); resetFilters(false); rows=DATA.rows; }
+    else flash("");
+    const res=analyse(rows,DATA.has), k=res.kpis;
+
+    $("#meta").textContent=`${DATA.filename} · ${shortDate(k.start)} to ${shortDate(k.end)} · ${rows.length.toLocaleString("en-US")} sales`;
+    const tiles=[
+      {l:"Revenue",v:fmt(k.revenue),lead:true},
+      {l:"Sales recorded",v:k.transactions.toLocaleString("en-US")},
+      {l:"Average sale",v:fmt(k.avg)},
+      k.customers!==null?{l:"Customers",v:k.customers.toLocaleString("en-US")}:null,
+      k.units!==null?{l:"Units sold",v:fmt(k.units)}:null,
+      k.growth!==null?{l:"Month on month",v:`${k.growth>=0?"▲":"▼"} ${Math.abs(k.growth).toFixed(1)}%`,c:k.growth>=0?"up":"down"}:null,
+    ].filter(Boolean);
+    $("#kpis").innerHTML=tiles.map(x=>`<div class="kpi${x.lead?" lead":""}"><dt>${esc(x.l)}</dt><dd${x.c?` class="${x.c}"`:""}>${esc(x.v)}</dd></div>`).join("");
+
+    const fig=(svg,wide)=>svg?`<figure class="chart${wide?" wide":""}">${svg}</figure>`:"";
+    let html=fig(chartTrend(res),true)+fig(chartBreakdown(res))+fig(chartRegion(res))+fig(chartPareto(res),true)+fig(chartHeat(res),true)+fig(chartAnomalies(res),true);
+    html+=fig(chartSegments(res));
+    if (res.anomalies.length){
+      html+=`<div class="chart table-wrap"><h2>Days to look into</h2><table><thead><tr><th>Date</th><th>Sales</th><th>Compared with usual</th></tr></thead><tbody>`
+        +res.anomalies.slice(-6).reverse().map(a=>`<tr><td>${esc(dLabel(a.t))}</td><td>${fmt(a.value)}</td><td><span class="pill ${a.kind}">${a.kind==="high"?"Above normal":"Below normal"}</span></td></tr>`).join("")
+        +`</tbody></table></div>`;
+    }
+    $("#charts").innerHTML=html;
+
+    $("#ledger").className=animate?"ledger print":"ledger";
+    $("#rs").textContent=`${shortDate(k.start,false)} to ${shortDate(k.end,false)}`;
+    $("#ledger").innerHTML = res.insights.length
+      ? res.insights.map((i,n)=>`<li style="--i:${n}"><span>${esc(i.label)}</span><i></i><b>${esc(i.value)}</b>${i.note?`<em>${esc(i.note)}</em>`:""}</li>`).join("")
+      : `<li><em>Not enough data for findings yet. Try a wider date range.</em></li>`;
+
+    const q=DATA.quality;
+    $("#quality").innerHTML=`<summary>How your file was read</summary>
+      <p>${q.rows_in.toLocaleString("en-US")} rows in the file, ${q.rows_used.toLocaleString("en-US")} used.
+      Removed: ${q.duplicates_removed} duplicate rows, ${q.bad_dates_removed} rows with unreadable dates, ${q.bad_amounts_removed} rows with unreadable sales, ${q.non_positive_removed} rows with zero or negative sales.</p>
+      <p>Columns matched: ${Object.entries(DATA.columns).map(([r,c])=>`${esc(r)} = <code>${esc(c)}</code>`).join(", ")}.</p>`;
+  }
+
+  function busy(fn){
+    $("#busy").hidden=false;
+    setTimeout(()=>{ try{ fn(); } finally { $("#busy").hidden=true; } },40);
+  }
+  function download(name,text){
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([text],{type:"text/csv"})); a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  }
+  async function readFile(file){
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name)) { flash("Only .csv files are supported. In Excel, use Save As, then CSV."); return; }
+    if (file.size>25*1024*1024) { flash("That file is over 25 MB. Try a smaller date range."); return; }
+    $("#file-name").textContent=file.name;
+    const text=await file.text(); busy(()=>open(text,file.name));
+  }
+
+  $("#file").addEventListener("change",e=>readFile(e.target.files[0]));
+  const drop=$("#drop");
+  ["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+  drop.addEventListener("drop",e=>readFile(e.dataTransfer.files[0]));
+  $("#btn-sample").addEventListener("click",()=>{ flash(""); busy(()=>open(makeSampleCSV(),"sample_sales.csv (demo data)")); });
+  $("#nav-sample").addEventListener("click",()=>download("shopsage_sample_sales.csv",makeSampleCSV()));
+  $("#nav-pdf").addEventListener("click",()=>window.print());
+  $("#nav-new").addEventListener("click",()=>{ $("#file").value=""; $("#file-name").textContent="Choose a CSV file or drop it here"; flash(""); show("home"); });
+  $("#brand").addEventListener("click",()=>{ flash(""); show(DATA?"report":"home"); });
+  ["#f-start","#f-end","#f-region","#f-category"].forEach(s=>$(s).addEventListener("change",()=>render()));
+  $("#f-reset").addEventListener("click",()=>resetFilters(true));
+})();
+</script>
+</body>
+</html>
